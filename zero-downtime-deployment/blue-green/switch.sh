@@ -38,6 +38,20 @@ health_check() {
 	return 1
 }
 
+#switch_lb_listener_rule
+switch_listener() {
+	local RULE_ARN=$1
+	echo "로드 밸런서 타깃 그룹 변경"
+
+	if aws elbv2 modify-rule --actions Type=forward,TargetGroupArn=$TARGET_ARN --rule-arn $RULE_ARN; then
+		echo "변경 시간 ${LOADING_SECOND}초 소요"
+		sleep $LOADING_SECOND
+	else
+		echo "로드 밸런서 타깃 그룹 변경 실패"
+		return 1
+	fi
+}
+
 #start_Container
 start_container() {
 	local COLOR=$1
@@ -60,15 +74,16 @@ start_container() {
 		docker-compose -p ${CONTAINER_NAME}-$COLOR -f ${DOCKER_COMPOSE_FILE} down
 		exit 1
 	else
-		echo "$COLOR 배포 성공"
-
-		echo "로드 밸런서 대상 그룹 변경"
-		aws elbv2 modify-rule --actions Type=forward,TargetGroupArn=$TARGET_ARN --rule-arn $AWS_RULE_ARN
-		echo "변경 시간 ${LOADING_SECOND}초 소요"
-		sleep $LOADING_SECOND
-		echo "기존${ING_COLOR} 컨테이너 정리"
-		echo "${ING_DOCKER_COMPOSE_FILE}"
-		docker-compose -p ${CONTAINER_NAME}-${ING_COLOR} -f ${ING_DOCKER_COMPOSE_FILE} down
+		if switch_listener $AWS_RULE_ARN; then
+			echo "기존${ING_COLOR} 컨테이너 정리"
+			echo "${ING_DOCKER_COMPOSE_FILE}"
+			docker-compose -p ${CONTAINER_NAME}-${ING_COLOR} -f ${ING_DOCKER_COMPOSE_FILE} down
+		else
+			echo "$COLOR 배포 실패"
+			echo "$COLOR 컨테이너 정리"
+			docker-compose -p ${CONTAINER_NAME}-$COLOR -f ${DOCKER_COMPOSE_FILE} down
+			exit 1
+		fi
 	fi
 }
 
