@@ -44,8 +44,7 @@ switch_listener() {
 	echo "로드 밸런서 타깃 그룹 변경"
 
 	if aws elbv2 modify-rule --actions Type=forward,TargetGroupArn=$TARGET_ARN --rule-arn $RULE_ARN; then
-		echo "변경 시간 ${LOADING_SECOND}초 소요"
-		sleep $LOADING_SECOND
+		echo "로드 밸런서 타깃 그룹 변경 성공"
 	else
 		echo "로드 밸런서 타깃 그룹 변경 실패"
 		return 1
@@ -75,6 +74,10 @@ start_container() {
 		exit 1
 	else
 		if switch_listener $AWS_RULE_ARN; then
+
+			echo "변경 시간 ${LOADING_SECOND}초 소요"
+			sleep $LOADING_SECOND
+
 			echo "기존${ING_COLOR} 컨테이너 정리"
 			echo "${ING_DOCKER_COMPOSE_FILE}"
 			docker-compose -p ${CONTAINER_NAME}-${ING_COLOR} -f ${ING_DOCKER_COMPOSE_FILE} down
